@@ -220,6 +220,54 @@ function AyahCard({ surahId, ayah }: { surahId: number; ayah: { number: number; 
   );
 }
 
+function TopHeader({ onOpenList }: { onOpenList: () => void }) {
+  return (
+    <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-card px-4 py-3 sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          aria-label="Open surah list"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-foreground md:hidden"
+          onClick={onOpenList}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary">
+          <BookOpen className="h-5 w-5 text-primary-foreground" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-[17px] font-bold leading-tight text-foreground">
+            Noor Quran
+          </h1>
+          <p className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+            Read · Reflect · Recite
+          </p>
+        </div>
+      </div>
+
+      <span className="font-arabic hidden justify-self-center text-xl text-primary lg:block">
+        بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+      </span>
+
+      <div className="flex shrink-0 items-center gap-3 rounded-full border border-border bg-background py-1 pl-1 pr-3 sm:pr-4">
+        <img
+          src={qariImage}
+          alt="Qari Abdul Mateen"
+          width={816}
+          height={816}
+          loading="lazy"
+          className="h-9 w-9 shrink-0 rounded-full bg-accent object-cover"
+        />
+        <div className="hidden leading-tight sm:block">
+          <p className="text-[13px] font-semibold text-foreground">Qari Abdul Mateen</p>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            Reciter
+          </p>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 function Index() {
   const [active, setActive] = useState<Surah>(surahData[0]);
   const [listOpen, setListOpen] = useState(false);
@@ -230,7 +278,9 @@ function Index() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
+      <TopHeader onOpenList={() => setListOpen(true)} />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
       <Sidebar />
 
       <div className="hidden w-[320px] shrink-0 border-r border-border md:block">
@@ -238,7 +288,8 @@ function Index() {
       </div>
 
       <main className="flex min-w-0 flex-1 flex-col bg-card">
-        <header className="grid h-[68px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5">
+        <div className="grid h-[68px] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5">
+
           <button
             aria-label="Open surah list"
             className="grid h-9 w-9 place-items-center rounded-lg text-foreground md:hidden"

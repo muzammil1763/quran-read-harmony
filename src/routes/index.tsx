@@ -289,26 +289,19 @@ function Index() {
 
       <main className="flex min-w-0 flex-1 flex-col bg-card">
         <div className="grid h-[68px] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5">
-
-          <button
-            aria-label="Open surah list"
-            className="grid h-9 w-9 place-items-center rounded-lg text-foreground md:hidden"
-            onClick={() => setListOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </button>
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-foreground">
+            <h2 className="truncate text-base font-semibold text-foreground">
               {active.name}
-            </h1>
+            </h2>
             <p className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
               {active.translation} · {active.ayahCount} ayahs · {active.revelation}
             </p>
           </div>
-          <span className="font-arabic shrink-0 text-xl text-primary sm:text-2xl">
-            بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+          <span className="font-arabic shrink-0 text-lg text-primary lg:hidden">
+            {active.arabicName}
           </span>
-        </header>
+        </div>
+
 
         <div className="min-h-0 flex-1 overflow-y-auto bg-background p-5">
           <div className="mx-auto flex max-w-3xl flex-col gap-[15px]">

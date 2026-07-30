@@ -18,6 +18,8 @@ import {
   LogOut,
 } from "lucide-react";
 import { surahData, type Surah } from "@/data/surahs";
+import qariImage from "@/assets/qari-abdul-mateen.png";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({

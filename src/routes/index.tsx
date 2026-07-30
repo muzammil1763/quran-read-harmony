@@ -10,6 +10,9 @@ import {
   Share2,
   Info,
   Link2,
+  Play,
+  Pause,
+
   Menu,
   X,
   LogOut,

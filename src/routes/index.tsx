@@ -335,6 +335,8 @@ function Index() {
           </div>
         </div>
       )}
+      </div>
     </div>
+
   );
 }

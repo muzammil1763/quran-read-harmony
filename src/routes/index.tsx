@@ -10,6 +10,9 @@ import {
   Share2,
   Info,
   Link2,
+  Play,
+  Pause,
+
   Menu,
   X,
   LogOut,
@@ -159,6 +162,8 @@ function SurahList({
 
 function AyahCard({ surahId, ayah }: { surahId: number; ayah: { number: number; arabic: string; english: string } }) {
   const [liked, setLiked] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
   return (
     <article className="rounded-lg bg-card p-5 shadow-card">
       <p className="font-arabic mb-4 text-right text-2xl leading-[2.4] text-foreground sm:text-3xl">
@@ -178,8 +183,24 @@ function AyahCard({ surahId, ayah }: { surahId: number; ayah: { number: number; 
       </div>
       <p className="mt-3 text-[15px] leading-relaxed text-foreground">{ayah.english}</p>
       <div className="mt-4 flex items-center gap-5 text-muted-foreground">
+        <button
+          aria-label={playing ? "Pause recitation" : "Play recitation"}
+          onClick={() => setPlaying((v) => !v)}
+          className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
+            playing
+              ? "bg-primary text-primary-foreground"
+              : "bg-accent text-primary hover:bg-primary hover:text-primary-foreground"
+          }`}
+        >
+          {playing ? (
+            <Pause className="h-[14px] w-[14px]" />
+          ) : (
+            <Play className="h-[14px] w-[14px] translate-x-[1px]" />
+          )}
+        </button>
         <button aria-label="Favorite" onClick={() => setLiked((v) => !v)}>
           <Heart
+
             className={`h-[18px] w-[18px] transition-colors ${
               liked ? "fill-destructive text-destructive" : "hover:text-foreground"
             }`}

@@ -183,8 +183,24 @@ function AyahCard({ surahId, ayah }: { surahId: number; ayah: { number: number; 
       </div>
       <p className="mt-3 text-[15px] leading-relaxed text-foreground">{ayah.english}</p>
       <div className="mt-4 flex items-center gap-5 text-muted-foreground">
+        <button
+          aria-label={playing ? "Pause recitation" : "Play recitation"}
+          onClick={() => setPlaying((v) => !v)}
+          className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
+            playing
+              ? "bg-primary text-primary-foreground"
+              : "bg-accent text-primary hover:bg-primary hover:text-primary-foreground"
+          }`}
+        >
+          {playing ? (
+            <Pause className="h-[14px] w-[14px]" />
+          ) : (
+            <Play className="h-[14px] w-[14px] translate-x-[1px]" />
+          )}
+        </button>
         <button aria-label="Favorite" onClick={() => setLiked((v) => !v)}>
           <Heart
+
             className={`h-[18px] w-[18px] transition-colors ${
               liked ? "fill-destructive text-destructive" : "hover:text-foreground"
             }`}

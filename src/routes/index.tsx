@@ -162,6 +162,8 @@ function SurahList({
 
 function AyahCard({ surahId, ayah }: { surahId: number; ayah: { number: number; arabic: string; english: string } }) {
   const [liked, setLiked] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
   return (
     <article className="rounded-lg bg-card p-5 shadow-card">
       <p className="font-arabic mb-4 text-right text-2xl leading-[2.4] text-foreground sm:text-3xl">

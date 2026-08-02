@@ -7,7 +7,8 @@ import {
   Share2, Menu, X, LogOut,
   ChevronLeft, ChevronRight, Play, Pause, Loader2,
   SkipBack, SkipForward, Volume2, VolumeX, Home,
-  ALargeSmall, Minus, Plus, Check,
+  ALargeSmall, Minus, Plus, Check, Info,
+  Phone, Mail, Globe, Smartphone, Download, GraduationCap,
 } from "lucide-react";
 import { surahData, type Surah } from "@/data/surahs";
 import { surahAudioUrl } from "@/lib/audio-urls";
@@ -17,12 +18,14 @@ const PAGE_SIZE = 10;
 const LS_BOOKMARKS  = "quran_bookmarks";
 const LS_FAV_AYAHS  = "quran_fav_ayahs";
 
-type SidePanel = "read" | "favourites" | "bookmarks";
+type SidePanel = "read" | "favourites" | "bookmarks" | "about" | "tajweed";
 
 const sideIcons: { icon: React.ElementType; label: string; panel: SidePanel }[] = [
   { icon: BookOpen, label: "Read",      panel: "read"       },
   { icon: Heart,    label: "Favorites", panel: "favourites" },
   { icon: Bookmark, label: "Bookmarks", panel: "bookmarks"  },
+  { icon: Info,           label: "About",     panel: "about"      },
+  { icon: GraduationCap, label: "Tajweed",   panel: "tajweed"    },
 ];
 
 type AudioState = "idle" | "loading" | "playing" | "paused" | "error";
@@ -57,6 +60,67 @@ async function shareSurah(surah: Surah): Promise<"shared" | "copied" | "error"> 
   catch { return "error"; }
 }
 
+// ── Download helpers ──────────────────────────────────────────────────────────
+async function downloadSurahPdf(surah: Surah) {
+  const lines: string[] = [];
+  const border = "═".repeat(60);
+  lines.push(border);
+  lines.push(`  ${surah.id}. ${surah.name} — ${surah.translation}`);
+  lines.push(`  ${surah.arabicName}  ·  ${surah.ayahCount} Ayahs  ·  ${surah.revelation}`);
+  lines.push(`  Reciter: Qari Abdul Mateen Shaheen`);
+  lines.push(border);
+  lines.push("");
+
+  if (surah.id !== 1 && surah.id !== 9) {
+    lines.push("بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ");
+    lines.push("In the name of Allah, the Most Gracious, the Most Merciful");
+    lines.push("");
+  }
+
+  for (const ayah of surah.ayahs) {
+    lines.push(`[${surah.id}:${ayah.number}]`);
+    lines.push(ayah.arabic);
+    lines.push(ayah.english);
+    lines.push(ayah.urdu);
+    lines.push("");
+  }
+
+  lines.push(border);
+  lines.push("Al Quran MP3 — Qari Abdul Mateen Shaheen");
+  lines.push("https://www.onlinequraninstitute.site");
+  lines.push(border);
+
+  const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${String(surah.id).padStart(3, "0")}-${surah.name}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function downloadSurahAudio(surah: Surah): Promise<"done" | "error"> {
+  try {
+    const proxyUrl = `/api/audio-proxy?surah=${surah.id}`;
+    const res = await fetch(proxyUrl);
+    if (!res.ok) throw new Error("fetch failed");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${String(surah.id).padStart(3, "0")}-${surah.name}.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return "done";
+  } catch {
+    return "error";
+  }
+}
+
 // ── Desktop sidebar icon strip ────────────────────────────────────────────────
 function Sidebar({ panel, onPanel, onLogout }: {
   panel: SidePanel; onPanel: (p: SidePanel) => void; onLogout: () => void;
@@ -72,7 +136,15 @@ function Sidebar({ panel, onPanel, onLogout }: {
             className={`grid h-10 w-10 place-items-center rounded-lg transition-colors ${
               panel === item.panel ? "bg-accent text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}>
-            <item.icon className="h-5 w-5" />
+            {item.panel === "about" ? (
+              <div className={`relative h-7 w-7 overflow-hidden rounded-full ring-2 transition-all ${
+                panel === "about" ? "ring-primary" : "ring-border"
+              }`}>
+                <Image src="/Qari.png" alt="About Qari" fill sizes="28px" className="object-cover" />
+              </div>
+            ) : (
+              <item.icon className="h-5 w-5" />
+            )}
           </button>
         ))}
       </nav>
@@ -111,10 +183,19 @@ function MobileBottomNav({ onOpenList, panel, onPanel, onLogout }: {
         <Bookmark className="h-5 w-5" />
         <span className="text-[10px] font-medium">Saved</span>
       </button>
-      <button aria-label="Sign out" onClick={onLogout}
-        className="flex flex-col items-center gap-0.5 text-muted-foreground active:text-destructive">
-        <LogOut className="h-5 w-5" />
-        <span className="text-[10px] font-medium">Logout</span>
+      <button aria-label="About" onClick={() => onPanel("about")}
+        className={`flex flex-col items-center gap-0.5 ${panel === "about" ? "text-primary" : "text-muted-foreground"}`}>
+        <div className={`relative h-6 w-6 overflow-hidden rounded-full ring-2 transition-all ${
+          panel === "about" ? "ring-primary" : "ring-border"
+        }`}>
+          <Image src="/Qari.png" alt="About Qari" fill sizes="24px" className="object-cover" />
+        </div>
+        <span className="text-[10px] font-medium">About</span>
+      </button>
+      <button aria-label="Tajweed" onClick={() => onPanel("tajweed")}
+        className={`flex flex-col items-center gap-0.5 ${panel === "tajweed" ? "text-primary" : "text-muted-foreground"}`}>
+        <GraduationCap className="h-5 w-5" />
+        <span className="text-[10px] font-medium">Tajweed</span>
       </button>
     </nav>
   );
@@ -220,6 +301,222 @@ function FavouritesPanel({ onSelect }: { onSelect: (s: Surah) => void }) {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+// ── Tajweed section ───────────────────────────────────────────────────────────
+function TajweedSection() {
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      {/* Header */}
+      <div className="flex h-[60px] shrink-0 items-center gap-2 border-b border-border bg-card px-4 sm:h-[68px] sm:px-5">
+        <GraduationCap className="h-5 w-5 shrink-0 text-primary" />
+        <span className="text-sm font-semibold text-foreground">Tajweed</span>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-5 p-4 sm:p-5">
+
+          {/* Hero card */}
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5 text-center shadow-card">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-primary/10">
+              <GraduationCap className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-[16px] font-bold text-foreground">Easy Tajweed</h2>
+              <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
+                for Correct Quran Recitation
+              </p>
+              <p className="mt-0.5 text-[11px] uppercase tracking-wide text-primary font-medium">
+                by Qari Abdul Mateen Shaheen
+              </p>
+            </div>
+          </div>
+
+          {/* Coming soon */}
+          <div className="rounded-2xl border border-dashed border-border bg-card p-5 text-center shadow-card">
+            <p className="text-[13px] font-semibold text-foreground mb-1">PDF Coming Soon</p>
+            <p className="text-[12px] text-muted-foreground leading-relaxed">
+              The Tajweed PDF book will be available here for reading and download once uploaded.
+            </p>
+          </div>
+
+          {/* What is Tajweed */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <h3 className="mb-2 text-[13px] font-semibold text-foreground">What is Tajweed?</h3>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              Tajweed (تجويد) refers to the set of rules governing the correct pronunciation
+              of the letters in the Quran and the manner in which the recitation should be
+              performed. The word itself means &ldquo;to make well&rdquo; or &ldquo;to improve.&rdquo;
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              Learning Tajweed is obligatory (فرض عين) for every Muslim who recites the Quran,
+              as it preserves the original pronunciation as taught by the Prophet ﷺ.
+            </p>
+          </div>
+
+          {/* Topics covered */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <h3 className="mb-3 text-[13px] font-semibold text-foreground">Topics Covered</h3>
+            <div className="flex flex-col gap-2">
+              {[
+                "Makharij al-Huruf (Articulation Points)",
+                "Sifat al-Huruf (Characteristics of Letters)",
+                "Noon Sakinah & Tanween Rules",
+                "Meem Sakinah Rules",
+                "Madd (Prolongation) Rules",
+                "Waqf & Ibtida (Stopping & Starting)",
+                "Qalqalah (Echo Sound)",
+                "Lam al-Shamsiyyah & Qamariyyah",
+              ].map((topic, i) => (
+                <div key={i} className="flex items-center gap-2.5 rounded-xl bg-background px-3 py-2">
+                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                  <span className="text-[12px] text-foreground">{topic}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Contact to get book */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <h3 className="mb-2 text-[13px] font-semibold text-foreground">Get the Book</h3>
+            <p className="text-[12px] text-muted-foreground leading-relaxed mb-3">
+              To obtain a physical or digital copy of &ldquo;Easy Tajweed for Correct Quran Recitation,&rdquo;
+              contact Qari Abdul Mateen Shaheen directly.
+            </p>
+            <a href="https://wa.me/923014499863" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent active:scale-[0.98]">
+              <Phone className="h-4 w-4 shrink-0 text-primary" />
+              <span>WhatsApp: +92 301 4499863</span>
+            </a>
+          </div>
+
+          <div className="h-2" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── About section ─────────────────────────────────────────────────────────────
+function AboutSection() {
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      {/* Header */}
+      <div className="flex h-[60px] shrink-0 items-center gap-2 border-b border-border bg-card px-4 sm:h-[68px] sm:px-5">
+        <Info className="h-5 w-5 shrink-0 text-primary" />
+        <span className="text-sm font-semibold text-foreground">About the Reciter</span>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-5 p-4 sm:p-5">
+
+          {/* Profile card */}
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5 text-center shadow-card">
+            <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-primary/20 shadow-md">
+              <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill sizes="96px" className="object-cover" />
+              <p className="mt-1 text-[12px] leading-relaxed text-primary font-medium">
+                Fazil al-Qira&apos;at al-&apos;Ashr
+              </p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mt-0.5">
+                Quran Reciter · Islamic Scholar · Author
+              </p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Founder &amp; Principal
+              </p>
+            </div>
+          </div>
+
+          {/* Bio */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <h3 className="mb-2 text-[13px] font-semibold text-foreground">Biography</h3>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              Qari Abdul Mateen Shaheen is a distinguished Quran Reciter, Fazil al-Qira&apos;at
+              al-&apos;Ashr, Islamic scholar, teacher, author, and the Founder &amp; Principal of{" "}
+              <span className="font-medium text-foreground">Markaz Al-Aqsa Al-Islami</span>, Dry Port
+              Road, Faisalabad, Pakistan.
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              He is dedicated to the teaching of the Holy Qur&apos;an, Tajweed, and Islamic Da&apos;wah.
+              He serves as the Secretary of the Qira&apos;at Department (Ahl-e-Hadith School of Thought)
+              and, through the Online Quran Institute, provides one-to-one Quran education to students
+              across the globe. He is also the author of{" "}
+              <span className="font-medium text-foreground italic">
+                &ldquo;Easy Tajweed for Correct Quran Recitation.&rdquo;
+              </span>
+            </p>
+          </div>
+
+          {/* Mobile App */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <h3 className="mb-3 text-[13px] font-semibold text-foreground">Official Mobile App</h3>
+            <p className="mb-3 text-[12px] text-muted-foreground leading-relaxed">
+              Al Quran MP3 by Qari Abdul Mateen Shaheen — complete Holy Qur&apos;an recitation with
+              modern learning features, available worldwide.
+            </p>
+            <div className="flex flex-col gap-2">
+              <a
+                href="https://play.google.com/store/apps/details?id=com.mrwebapp.al_quran_mp3"
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent active:scale-[0.98]">
+                <Smartphone className="h-4 w-4 shrink-0 text-primary" />
+                <span className="flex-1">Google Play Store (Android)</span>
+              </a>
+              <a
+                href="https://apps.apple.com/us/app/al-quran-mp3/id6759789171"
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent active:scale-[0.98]">
+                <Smartphone className="h-4 w-4 shrink-0 text-primary" />
+                <span className="flex-1">Apple App Store (iPhone &amp; iPad)</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <h3 className="mb-3 text-[13px] font-semibold text-foreground">Contact</h3>
+            <div className="flex flex-col gap-2">
+              <a href="tel:+923014499863"
+                className="flex items-center gap-2.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors">
+                <Phone className="h-4 w-4 shrink-0 text-primary" />
+                <span>+92 301 4499863 (Phone / WhatsApp)</span>
+              </a>
+              <a href="mailto:AbdulMateenShaheen808@gmail.com"
+                className="flex items-center gap-2.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors break-all">
+                <Mail className="h-4 w-4 shrink-0 text-primary" />
+                <span>AbdulMateenShaheen808@gmail.com</span>
+              </a>
+              <a href="https://www.onlinequraninstitute.site" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors">
+                <Globe className="h-4 w-4 shrink-0 text-primary" />
+                <span>onlinequraninstitute.site</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Social Media */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <h3 className="mb-3 text-[13px] font-semibold text-foreground">Official Social Media</h3>
+            <div className="flex flex-col gap-2">
+              {[
+                { label: "Facebook", handle: "@QariAbdulMateenOfficial", url: "https://www.facebook.com/QariAbdulMateenOfficial", color: "text-blue-500" },
+                { label: "Instagram", handle: "@qariabdulmateenshaheen", url: "https://www.instagram.com/qariabdulmateenshaheen/", color: "text-pink-500" },
+                { label: "TikTok", handle: "@qariabdulmateenshaheen", url: "https://www.tiktok.com/@qariabdulmateenshaheen", color: "text-foreground" },
+              ].map(({ label, handle, url, color }) => (
+                <a key={label} href={url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 rounded-xl border border-transparent bg-background px-3 py-2.5 transition-colors hover:border-border hover:bg-accent active:scale-[0.98]">
+                  <span className={`text-[13px] font-semibold ${color} w-20 shrink-0`}>{label}</span>
+                  <span className="min-w-0 truncate text-[12px] text-muted-foreground">{handle}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer spacer for mobile bottom nav */}
+          <div className="h-2" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -486,7 +783,8 @@ function AyahCard({ surahId, ayah, arabicSize, lineHeight }: {
 function ReadingToolbar({ active, totalPages, page, arabicSize, lineHeight,
   onSizeChange, onLineChange, onPrevSurah, onNextSurah,
   onPlayPause, playingSurahId, audioState,
-  isBookmarked, onToggleBookmark, onShare, shareStatus }: {
+  isBookmarked, onToggleBookmark, onShare, shareStatus,
+  onDownloadText, onDownloadAudio, textDownloadState, audioDownloadState }: {
   active: Surah; totalPages: number; page: number; arabicSize: number; lineHeight: number;
   onSizeChange: (d: number) => void; onLineChange: (d: number) => void;
   onPrevSurah: () => void; onNextSurah: () => void;
@@ -494,6 +792,8 @@ function ReadingToolbar({ active, totalPages, page, arabicSize, lineHeight,
   isBookmarked: boolean;
   onToggleBookmark: () => void;
   onShare: () => void; shareStatus: "idle" | "copied" | "shared";
+  onDownloadText: () => void; textDownloadState: "idle" | "done";
+  onDownloadAudio: () => void; audioDownloadState: "idle" | "downloading" | "done" | "error";
 }) {
   const hasPrevSurah = active.id > 1;
   const hasNextSurah = active.id < 114;
@@ -559,6 +859,31 @@ function ReadingToolbar({ active, totalPages, page, arabicSize, lineHeight,
               ? <Check className="h-4 w-4 text-primary" />
               : <Share2 className="h-4 w-4 text-muted-foreground" />}
           </button>
+          {/* Download TXT */}
+          <button onClick={onDownloadText}
+            aria-label="Download text & translation as TXT"
+            title="Download Arabic + English + Urdu as .txt"
+            className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-95">
+            {textDownloadState === "done"
+              ? <Check className="h-3.5 w-3.5 text-primary" />
+              : <Download className="h-3.5 w-3.5" />}
+            <span>TXT</span>
+          </button>
+          {/* Download audio */}
+          <button onClick={onDownloadAudio}
+            aria-label="Download audio MP3"
+            title="Download surah audio as .mp3"
+            disabled={audioDownloadState === "downloading"}
+            className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-95 disabled:pointer-events-none disabled:opacity-50">
+            {audioDownloadState === "downloading"
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              : audioDownloadState === "done"
+                ? <Check className="h-3.5 w-3.5 text-green-500" />
+                : audioDownloadState === "error"
+                  ? <Download className="h-3.5 w-3.5 text-destructive" />
+                  : <Download className="h-3.5 w-3.5 text-primary" />}
+            <span className={audioDownloadState === "error" ? "text-destructive" : audioDownloadState === "done" ? "text-green-500" : "text-primary"}>MP3</span>
+          </button>
         </div>
 
         <div className="flex-1" />
@@ -614,7 +939,7 @@ function TopHeader({ onOpenList }: { onOpenList: () => void }) {
           <Menu className="h-5 w-5" />
         </button>
         <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl sm:h-10 sm:w-10">
-          <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill className="object-cover" priority />
+          <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill sizes="40px" className="object-cover" priority />
         </div>
         <div className="min-w-0">
           <h1 className="truncate text-[15px] font-bold leading-tight text-foreground sm:text-[17px]">
@@ -631,7 +956,7 @@ function TopHeader({ onOpenList }: { onOpenList: () => void }) {
       {/* Qari info badge */}
       <div className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-background py-1 pl-1 pr-2 sm:gap-3 sm:pr-4">
         <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full sm:h-9 sm:w-9">
-          <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill className="object-cover" />
+          <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill sizes="36px" className="object-cover" />
         </div>
         <div className="hidden leading-tight sm:block">
           <p className="text-[13px] font-semibold text-foreground">Qari Abdul Mateen Shaheen</p>
@@ -656,6 +981,10 @@ export function QuranReader() {
   const [mounted, setMounted] = useState(false);
   const [shareStatus, setShareStatus] = useState<"idle"|"copied"|"shared">("idle");
   const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [textDownloadState, setTextDownloadState] = useState<"idle"|"done">("idle");
+  const [audioDownloadState, setAudioDownloadState] = useState<"idle"|"downloading"|"done"|"error">("idle");
+  const audioDownloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textDownloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load persisted data on mount + handle ?surah= deep-link
   useEffect(() => {
@@ -686,6 +1015,22 @@ export function QuranReader() {
       shareTimerRef.current = setTimeout(() => setShareStatus("idle"), 2000);
     }
   }, [active]);
+
+  const handleDownloadText = useCallback(async () => {
+    await downloadSurahPdf(active);
+    setTextDownloadState("done");
+    if (textDownloadTimerRef.current) clearTimeout(textDownloadTimerRef.current);
+    textDownloadTimerRef.current = setTimeout(() => setTextDownloadState("idle"), 3000);
+  }, [active]);
+
+  const handleDownloadAudio = useCallback(async () => {
+    if (audioDownloadState === "downloading") return;
+    setAudioDownloadState("downloading");
+    const result = await downloadSurahAudio(active);
+    setAudioDownloadState(result === "done" ? "done" : "error");
+    if (audioDownloadTimerRef.current) clearTimeout(audioDownloadTimerRef.current);
+    audioDownloadTimerRef.current = setTimeout(() => setAudioDownloadState("idle"), 3000);
+  }, [active, audioDownloadState]);
 
   const handleLogoutConfirm = useCallback(() => {
     try {
@@ -725,6 +1070,8 @@ export function QuranReader() {
 
   const select = (s: Surah) => {
     setActive(s); setPage(1); setListOpen(false);
+    setTextDownloadState("idle");
+    setAudioDownloadState("idle");
     setTimeout(() => scrollRef.current?.scrollTo({ top: 0, behavior: "instant" }), 0);
   };
 
@@ -849,9 +1196,7 @@ export function QuranReader() {
       {!mounted && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-6 bg-background">
           <div className="relative h-28 w-28 overflow-hidden rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.18)] sm:h-36 sm:w-36">
-            <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill className="object-cover" priority />
-          </div>
-          <div className="text-center">
+            <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill sizes="144px" className="object-cover" priority />
             <p className="text-lg font-bold text-foreground sm:text-xl">Qari Abdul Mateen Shaheen</p>
             <p className="mt-0.5 text-[11px] uppercase tracking-widest text-muted-foreground">Read · Reflect · Recite</p>
           </div>
@@ -888,9 +1233,9 @@ export function QuranReader() {
           {sidePanel === "favourites" && (
             <FavouritesPanel onSelect={s => { select(s); setSidePanel("read"); }} />
           )}
-        </div>
-
-        {/* Reading panel */}
+          {sidePanel === "about" && <AboutSection />}
+          {sidePanel === "tajweed" && <TajweedSection />}
+        </div>        {/* Reading panel */}
         <main className="flex min-w-0 flex-1 flex-col bg-card">
           <ReadingToolbar
             active={active} totalPages={totalPages} page={page}
@@ -904,6 +1249,10 @@ export function QuranReader() {
             onToggleBookmark={handleToggleBookmark}
             onShare={handleShare}
             shareStatus={shareStatus}
+            onDownloadText={handleDownloadText}
+            onDownloadAudio={handleDownloadAudio}
+            textDownloadState={textDownloadState}
+            audioDownloadState={audioDownloadState}
           />
 
           <div ref={scrollRef} className={`relative min-h-0 flex-1 overflow-y-auto bg-background p-3 sm:p-5 ${mobileBottomPad} md:pb-5`}>
@@ -1044,14 +1393,28 @@ export function QuranReader() {
         </div>
       )}
 
-      {/* Mobile panels — Bookmarks & Favourites (slide up from bottom, same style as surah drawer) */}
-      {(sidePanel === "bookmarks" || sidePanel === "favourites") && (
+      {/* Mobile panels — Bookmarks, Favourites & About (slide up from bottom, same style as surah drawer) */}
+      {(sidePanel === "bookmarks" || sidePanel === "favourites" || sidePanel === "about" || sidePanel === "tajweed") && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
           <div className="absolute inset-0 bg-foreground/40" onClick={() => setSidePanel("read")} />
           <div className="relative z-10 flex flex-col rounded-t-2xl bg-background shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
             style={{ height: "85dvh" }}>
+            {/* Drag handle */}
             <div className="flex shrink-0 items-center justify-center pt-3 pb-1">
               <div className="h-1 w-10 rounded-full bg-border" />
+            </div>
+            {/* Title row with close button */}
+            <div className="flex shrink-0 items-center justify-between px-5 pb-3">
+              <h2 className="text-base font-semibold text-foreground">
+                {sidePanel === "bookmarks" && "Bookmarked Surahs"}
+                {sidePanel === "favourites" && "Favourite Ayahs"}
+                {sidePanel === "about" && "About the Reciter"}
+                {sidePanel === "tajweed" && "Tajweed"}
+              </h2>
+              <button onClick={() => setSidePanel("read")} aria-label="Close"
+                className="grid h-8 w-8 place-items-center rounded-full bg-muted text-muted-foreground active:scale-90">
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
               {sidePanel === "bookmarks" && (
@@ -1065,6 +1428,8 @@ export function QuranReader() {
               {sidePanel === "favourites" && (
                 <FavouritesPanel onSelect={s => { select(s); setSidePanel("read"); }} />
               )}
+              {sidePanel === "about" && <AboutSection />}
+              {sidePanel === "tajweed" && <TajweedSection />}
             </div>
           </div>
         </div>

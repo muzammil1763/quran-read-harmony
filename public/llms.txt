@@ -1,0 +1,29 @@
+# Qari Abdul Mateen Shaheen — Holy Quran Recitation
+
+> Free online Quran reader and audio player featuring the beautiful recitation of Qari Abdul Mateen Shaheen.
+
+## About This Site
+
+This website (qariabdulmateenshaheen.com) is dedicated to making the Holy Quran accessible to everyone. It provides:
+
+- Complete Arabic text of all 114 surahs of the Holy Quran
+- English translation (Ahmed Ali)
+- Urdu translation (Maududi)
+- High-quality audio recitation by Qari Abdul Mateen Shaheen
+- Ayah-by-ayah display with bookmarking and favourites
+
+## About Qari Abdul Mateen Shaheen
+
+Qari Abdul Mateen Shaheen is a renowned Quran reciter (Qari) known for his melodious and precise recitation of the Holy Quran. This site hosts his complete recitation of all 114 surahs.
+
+## Content
+
+- Language: Arabic (Quran text), English, Urdu
+- Surahs: 1 (Al-Fatiha) through 114 (An-Nas)
+- Total Ayahs: 6,236
+- Audio: MP3 recitation per surah
+- Free to use, no login required
+
+## Contact
+
+Website: https://qariabdulmateenshaheen.com

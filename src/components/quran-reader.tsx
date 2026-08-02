@@ -486,7 +486,7 @@ function AyahCard({ surahId, ayah, arabicSize, lineHeight }: {
 function ReadingToolbar({ active, totalPages, page, arabicSize, lineHeight,
   onSizeChange, onLineChange, onPrevSurah, onNextSurah,
   onPlayPause, playingSurahId, audioState,
-  isFavourite, isBookmarked, onToggleFavourite, onToggleBookmark, onShare, shareStatus }: {
+  isBookmarked, onToggleBookmark, onShare, shareStatus }: {
   active: Surah; totalPages: number; page: number; arabicSize: number; lineHeight: number;
   onSizeChange: (d: number) => void; onLineChange: (d: number) => void;
   onPrevSurah: () => void; onNextSurah: () => void;

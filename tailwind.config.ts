@@ -61,6 +61,9 @@ const config: Config = {
           ring: "hsl(var(--sidebar-ring))",
         },
         tafsir: "hsl(var(--tafsir))",
+        arabic: "hsl(var(--arabic))",
+        urdu: "hsl(var(--urdu))",
+        "ayah-num": "hsl(var(--ayah-num))",
       },
       borderRadius: {
         lg: "var(--radius)",

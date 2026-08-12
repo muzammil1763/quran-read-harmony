@@ -18,7 +18,7 @@ const PAGE_SIZE = 10;
 const LS_BOOKMARKS  = "quran_bookmarks";
 const LS_FAV_AYAHS  = "quran_fav_ayahs";
 
-type SidePanel = "read" | "favourites" | "bookmarks" | "about" | "tajweed";
+type SidePanel = "read" | "favourites" | "bookmarks" | "about" | "tajweed" | "download";
 
 const sideIcons: { icon: React.ElementType; label: string; panel: SidePanel }[] = [
   { icon: BookOpen, label: "Read",      panel: "read"       },
@@ -26,6 +26,7 @@ const sideIcons: { icon: React.ElementType; label: string; panel: SidePanel }[] 
   { icon: Bookmark, label: "Bookmarks", panel: "bookmarks"  },
   { icon: Info,           label: "About",     panel: "about"      },
   { icon: GraduationCap, label: "Tajweed",   panel: "tajweed"    },
+  { icon: Download,      label: "Download",  panel: "download"   },
 ];
 
 type AudioState = "idle" | "loading" | "playing" | "paused" | "error";
@@ -197,6 +198,11 @@ function MobileBottomNav({ onOpenList, panel, onPanel, onLogout }: {
         <GraduationCap className="h-5 w-5" />
         <span className="text-[10px] font-medium">Tajweed</span>
       </button>
+      <button aria-label="Download Quran" onClick={() => onPanel("download")}
+        className={`flex flex-col items-center gap-0.5 ${panel === "download" ? "text-primary" : "text-muted-foreground"}`}>
+        <Download className="h-5 w-5" />
+        <span className="text-[10px] font-medium">Download</span>
+      </button>
     </nav>
   );
 }
@@ -301,6 +307,236 @@ function FavouritesPanel({ onSelect }: { onSelect: (s: Surah) => void }) {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+// ── Download All (ZIP) section ────────────────────────────────────────────────
+type DlStatus = "idle" | "pending" | "done" | "error";
+
+interface SurahDlState {
+  status: DlStatus;
+  progress: number; // 0-100
+}
+
+function DownloadSection() {
+  const [phase, setPhase] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [current, setCurrent] = useState(0);           // 1-114
+  const [surahStates, setSurahStates] = useState<SurahDlState[]>(
+    () => Array.from({ length: 114 }, () => ({ status: "idle", progress: 0 }))
+  );
+  const abortRef = useRef(false);
+
+  const updateSurah = (idx: number, patch: Partial<SurahDlState>) => {
+    setSurahStates(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    });
+  };
+
+  const startDownload = async () => {
+    abortRef.current = false;
+    setPhase("running");
+    setCurrent(0);
+    setSurahStates(Array.from({ length: 114 }, () => ({ status: "idle", progress: 0 })));
+
+    // Dynamically import JSZip — client only
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    const folder = zip.folder("Quran - Qari Abdul Mateen Shaheen")!;
+
+    // Also add one combined text file
+    const textLines: string[] = [];
+    textLines.push("═".repeat(60));
+    textLines.push("  THE HOLY QURAN");
+    textLines.push("  Reciter: Qari Abdul Mateen Shaheen");
+    textLines.push("  Arabic · English · Urdu");
+    textLines.push("═".repeat(60));
+    textLines.push("");
+
+    let anyError = false;
+
+    for (let i = 0; i < 114; i++) {
+      if (abortRef.current) break;
+
+      const surah = surahData[i];
+      setCurrent(i + 1);
+      updateSurah(i, { status: "pending", progress: 0 });
+
+      // ── Fetch audio via proxy ──
+      try {
+        const res = await fetch(`/api/audio-proxy?surah=${surah.id}`);
+        if (!res.ok) throw new Error("fetch failed");
+
+        // Stream with progress
+        const contentLength = Number(res.headers.get("content-length") ?? 0);
+        const reader = res.body!.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          if (contentLength > 0) {
+            updateSurah(i, { progress: Math.round((received / contentLength) * 100) });
+          }
+        }
+
+        const audioBlob = new Blob(chunks, { type: "audio/mpeg" });
+        const filename = `${String(surah.id).padStart(3, "0")}-${surah.name}.mp3`;
+        folder.file(filename, audioBlob);
+        updateSurah(i, { status: "done", progress: 100 });
+      } catch {
+        updateSurah(i, { status: "error", progress: 0 });
+        anyError = true;
+      }
+
+      // ── Add surah text ──
+      textLines.push("─".repeat(60));
+      textLines.push(`  ${surah.id}. ${surah.name} — ${surah.translation}  |  ${surah.arabicName}`);
+      textLines.push(`  ${surah.ayahCount} Ayahs  ·  ${surah.revelation}`);
+      textLines.push("─".repeat(60));
+      if (surah.id !== 1 && surah.id !== 9) {
+        textLines.push("بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ");
+        textLines.push("In the name of Allah, the Most Gracious, the Most Merciful");
+        textLines.push("");
+      }
+      for (const ayah of surah.ayahs) {
+        textLines.push(`[${surah.id}:${ayah.number}]`);
+        textLines.push(ayah.arabic);
+        textLines.push(ayah.english);
+        textLines.push(ayah.urdu);
+        textLines.push("");
+      }
+    }
+
+    if (abortRef.current) { setPhase("idle"); return; }
+
+    // Add text file to zip
+    zip.file("Quran-Arabic-English-Urdu.txt", textLines.join("\n"), { binary: false });
+
+    // Generate zip blob
+    const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Quran-Qari-Abdul-Mateen-Shaheen.zip";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setPhase(anyError ? "error" : "done");
+  };
+
+  const doneCount  = surahStates.filter(s => s.status === "done").length;
+  const errorCount = surahStates.filter(s => s.status === "error").length;
+  const progressPct = Math.round((doneCount / 114) * 100);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      {/* Header */}
+      <div className="flex h-[60px] shrink-0 items-center gap-2 border-b border-border bg-card px-4 sm:h-[68px] sm:px-5">
+        <Download className="h-5 w-5 shrink-0 text-primary" />
+        <span className="text-sm font-semibold text-foreground">Download Quran</span>
+        {phase === "done" && (
+          <span className="ml-auto rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-600">Done</span>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-4 p-4 sm:p-5">
+
+          {/* Info card */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <p className="text-[13px] font-semibold text-foreground mb-1">Complete Quran Package</p>
+            <p className="text-[12px] text-muted-foreground leading-relaxed">
+              Downloads all 114 Surah MP3s + full Arabic, English &amp; Urdu text as a single ZIP file.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+              <span className="rounded-lg bg-accent px-2 py-1">114 Audio files</span>
+              <span className="rounded-lg bg-accent px-2 py-1">1 Text file (all translations)</span>
+              <span className="rounded-lg bg-accent px-2 py-1">~150–300 MB</span>
+            </div>
+          </div>
+
+          {/* Action button */}
+          {phase === "idle" && (
+            <button onClick={startDownload}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-[14px] font-semibold text-primary-foreground shadow transition-all hover:opacity-90 active:scale-[0.98]">
+              <Download className="h-5 w-5" />
+              Download Complete Quran (ZIP)
+            </button>
+          )}
+
+          {/* Progress */}
+          {(phase === "running" || phase === "done" || phase === "error") && (
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[13px] font-semibold text-foreground">
+                  {phase === "running" ? `Downloading ${current} / 114...` : phase === "done" ? "✓ Download complete!" : "Done with some errors"}
+                </span>
+                <span className="text-[12px] font-semibold text-primary">{progressPct}%</span>
+              </div>
+              {/* Progress bar */}
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progressPct}%` }} />
+              </div>
+              {errorCount > 0 && (
+                <p className="mt-2 text-[11px] text-destructive">{errorCount} surah(s) failed to download</p>
+              )}
+              {phase === "running" && (
+                <button onClick={() => { abortRef.current = true; setPhase("idle"); }}
+                  className="mt-3 w-full rounded-xl border border-border py-2 text-[12px] font-semibold text-muted-foreground hover:bg-accent active:scale-[0.98]">
+                  Cancel
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Per-surah status list */}
+          {(phase === "running" || phase === "done" || phase === "error") && (
+            <div className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
+              <div className="max-h-[340px] overflow-y-auto divide-y divide-border">
+                {surahData.map((s, i) => {
+                  const st = surahStates[i];
+                  return (
+                    <div key={s.id} className="flex items-center gap-3 px-3 py-2">
+                      {/* Status icon */}
+                      <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-bold ${
+                        st.status === "done"    ? "bg-green-500/10 text-green-600" :
+                        st.status === "error"   ? "bg-destructive/10 text-destructive" :
+                        st.status === "pending" ? "bg-primary/10 text-primary" :
+                        "bg-muted text-muted-foreground"
+                      }`}>
+                        {st.status === "done"    ? "✓" :
+                         st.status === "error"   ? "✗" :
+                         st.status === "pending" ? <Loader2 className="h-3 w-3 animate-spin" /> :
+                         <span className="text-[9px]">{s.id}</span>}
+                      </div>
+                      {/* Name */}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-medium text-foreground">{s.name}</p>
+                        {st.status === "pending" && st.progress > 0 && (
+                          <div className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+                            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${st.progress}%` }} />
+                          </div>
+                        )}
+                      </div>
+                      {/* Arabic name */}
+                      <span className="font-arabic shrink-0 text-sm text-primary">{s.arabicName}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
     </div>
   );
 }
@@ -757,24 +993,45 @@ function AyahCard({ surahId, ayah, arabicSize, lineHeight }: {
   };
 
   return (
-    <article className="rounded-xl bg-card p-4 shadow-card sm:p-5">
+    <article className="rounded-xl bg-card p-4 shadow-card sm:p-5 border-l-4 border-l-primary/60">
+      {/* Arabic */}
       <p
-        className="font-arabic mb-4 text-right text-foreground"
-        style={{ fontSize: `${arabicSize}px`, lineHeight }}
+        className="font-arabic mb-4 text-right leading-loose"
+        style={{
+          fontSize: `${arabicSize}px`,
+          lineHeight,
+          color: "hsl(var(--arabic))",
+        }}
       >{ayah.arabic}</p>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="text-lg font-bold text-primary">{surahId}:{ayah.number}</span>
+
+      {/* Ayah number + label row */}
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-bold"
+            style={{ background: "hsl(var(--ayah-num)/15%)", color: "hsl(var(--ayah-num))" }}>
+            {surahId}:{ayah.number}
+          </span>
           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">English · Ahmed Ali</span>
         </div>
-        {/* Favourite this ayah */}
+        {/* Favourite */}
         <button onClick={toggleLike} aria-label={liked ? "Remove from favourites" : "Favourite this ayah"}
           className="grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors active:scale-90 hover:bg-accent touch-manipulation">
           <Heart className={`h-4 w-4 transition-colors ${liked ? "fill-rose-500 text-rose-500" : "text-muted-foreground"}`} />
         </button>
       </div>
-      <p className="mt-3 text-[15px] leading-relaxed text-foreground">{ayah.english}</p>
-      <p className="mt-2 text-right text-[15px] leading-relaxed text-muted-foreground" dir="rtl">{ayah.urdu}</p>
+
+      {/* English */}
+      <p className="text-[15px] leading-relaxed"
+        style={{ color: "hsl(var(--english))" }}>
+        {ayah.english}
+      </p>
+
+      {/* Urdu — bold + warm amber */}
+      <p className="mt-2 text-right text-[15px] font-bold leading-loose"
+        dir="rtl"
+        style={{ color: "hsl(var(--urdu))" }}>
+        {ayah.urdu}
+      </p>
     </article>
   );
 }
@@ -1235,6 +1492,7 @@ export function QuranReader() {
           )}
           {sidePanel === "about" && <AboutSection />}
           {sidePanel === "tajweed" && <TajweedSection />}
+          {sidePanel === "download" && <DownloadSection />}
         </div>        {/* Reading panel */}
         <main className="flex min-w-0 flex-1 flex-col bg-card">
           <ReadingToolbar
@@ -1255,17 +1513,19 @@ export function QuranReader() {
             audioDownloadState={audioDownloadState}
           />
 
-          <div ref={scrollRef} className={`relative min-h-0 flex-1 overflow-y-auto bg-background p-3 sm:p-5 ${mobileBottomPad} md:pb-5`}>
+          <div ref={scrollRef} className={`relative min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 ${mobileBottomPad} md:pb-5`}
+            style={{ background: "hsl(195 60% 94%)" }}>
             <div className="relative z-10 mx-auto flex max-w-3xl flex-col gap-[12px] sm:gap-[15px]">
               {page === 1 && active.id !== 1 && active.id !== 9 && (
-                <div className="rounded-xl bg-card px-4 py-4 text-center shadow-card sm:px-5">
-                  <p className="font-arabic text-2xl leading-[2.2] text-primary sm:text-3xl">
+                <div className="rounded-xl px-4 py-5 text-center shadow-card sm:px-5"
+                  style={{ background: "linear-gradient(135deg, hsl(191 75% 28%), hsl(191 65% 42%))" }}>
+                  <p className="font-arabic text-2xl leading-[2.2] text-white sm:text-3xl">
                     بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-1 text-sm text-white/80">
                     In the name of Allah, the Most Gracious, the Most Merciful
                   </p>
-                  <p className="mt-0.5 text-sm text-muted-foreground" dir="rtl">
+                  <p className="mt-0.5 text-sm font-bold text-white/90" dir="rtl">
                     اللہ کے نام سے جو رحمان و رحیم ہے
                   </p>
                 </div>
@@ -1394,7 +1654,7 @@ export function QuranReader() {
       )}
 
       {/* Mobile panels — Bookmarks, Favourites & About (slide up from bottom, same style as surah drawer) */}
-      {(sidePanel === "bookmarks" || sidePanel === "favourites" || sidePanel === "about" || sidePanel === "tajweed") && (
+      {(sidePanel === "bookmarks" || sidePanel === "favourites" || sidePanel === "about" || sidePanel === "tajweed" || sidePanel === "download") && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
           <div className="absolute inset-0 bg-foreground/40" onClick={() => setSidePanel("read")} />
           <div className="relative z-10 flex flex-col rounded-t-2xl bg-background shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
@@ -1410,6 +1670,7 @@ export function QuranReader() {
                 {sidePanel === "favourites" && "Favourite Ayahs"}
                 {sidePanel === "about" && "About the Reciter"}
                 {sidePanel === "tajweed" && "Tajweed"}
+                {sidePanel === "download" && "Download Quran"}
               </h2>
               <button onClick={() => setSidePanel("read")} aria-label="Close"
                 className="grid h-8 w-8 place-items-center rounded-full bg-muted text-muted-foreground active:scale-90">
@@ -1430,6 +1691,7 @@ export function QuranReader() {
               )}
               {sidePanel === "about" && <AboutSection />}
               {sidePanel === "tajweed" && <TajweedSection />}
+              {sidePanel === "download" && <DownloadSection />}
             </div>
           </div>
         </div>

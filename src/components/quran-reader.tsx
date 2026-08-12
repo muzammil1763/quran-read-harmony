@@ -385,7 +385,7 @@ function DownloadSection() {
           }
         }
 
-        const audioBlob = new Blob(chunks, { type: "audio/mpeg" });
+        const audioBlob = new Blob(chunks as Uint8Array<ArrayBuffer>[], { type: "audio/mpeg" });
         const filename = `${String(surah.id).padStart(3, "0")}-${surah.name}.mp3`;
         folder.file(filename, audioBlob);
         updateSurah(i, { status: "done", progress: 100 });

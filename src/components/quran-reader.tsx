@@ -129,7 +129,9 @@ function Sidebar({ panel, onPanel, onLogout }: {
   return (
     <aside className="hidden w-[68px] shrink-0 flex-col border-r border-border bg-card lg:flex">
       <div className="grid h-[68px] place-items-center bg-primary">
-        <BookOpen className="h-6 w-6 text-primary-foreground" />
+        <div className="relative h-9 w-9 overflow-hidden rounded-lg">
+          <Image src="/logo.png" alt="Al Quran" fill sizes="36px" className="object-contain" />
+        </div>
       </div>
       <nav className="flex flex-1 flex-col items-center gap-2 py-6">
         {sideIcons.map(item => (
@@ -570,11 +572,29 @@ function TajweedSection() {
             </div>
           </div>
 
-          {/* Coming soon */}
-          <div className="rounded-2xl border border-dashed border-border bg-card p-5 text-center shadow-card">
-            <p className="text-[13px] font-semibold text-foreground mb-1">PDF Coming Soon</p>
-            <p className="text-[12px] text-muted-foreground leading-relaxed">
-              The Tajweed PDF book will be available here for reading and download once uploaded.
+          {/* PDF download */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10">
+                <Download className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-foreground">Easy Tajweed PDF</p>
+                <p className="text-[11px] text-muted-foreground">Full book — free download</p>
+              </div>
+            </div>
+            <a
+              href="https://pub-2261e58a05ee4a11ad196167122b20b3.r2.dev/easytajweed.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              download="EasyTajweed-QariAbdulMateenShaheen.pdf"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-[13px] font-semibold text-primary-foreground shadow transition-all hover:opacity-90 active:scale-[0.98]"
+            >
+              <Download className="h-4 w-4" />
+              Download PDF
+            </a>
+            <p className="mt-3 text-center text-[11px] text-muted-foreground">
+              Opens in a new tab — save or read directly in your browser.
             </p>
           </div>
 
@@ -1196,7 +1216,7 @@ function TopHeader({ onOpenList }: { onOpenList: () => void }) {
           <Menu className="h-5 w-5" />
         </button>
         <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl sm:h-10 sm:w-10">
-          <Image src="/Qari.png" alt="Qari Abdul Mateen Shaheen" fill sizes="40px" className="object-cover" priority />
+          <Image src="/logo.png" alt="Al Quran" fill sizes="40px" className="object-contain" priority />
         </div>
         <div className="min-w-0">
           <h1 className="truncate text-[15px] font-bold leading-tight text-foreground sm:text-[17px]">
